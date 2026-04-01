@@ -55,6 +55,7 @@ app.add_middleware(
         # Vercel deployments (production + previews)
         "https://ai-based-welding-defect-detection.vercel.app",
         "https://welding-ai.vercel.app",
+        "https://ai-based-welding-defect-detection-navy.vercel.app",
     ],
     allow_origin_regex=r"(https://.*\.vercel\.app|http://(192\.168|172\.\d+)\.\d+\.\d+:\d+)",
     allow_credentials=True,
