@@ -99,4 +99,4 @@ Explainability now uses the exact same preprocessing as inference and provides:
 - fused explainability map
 
 This resolves prior failures caused by inconsistent input sizing and preprocessing.
-# AI-Based-Welding-Defect-Detection
+
