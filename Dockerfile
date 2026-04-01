@@ -27,4 +27,5 @@ COPY . .
 EXPOSE 8000
 
 # Start the FastAPI server
-CMD uvicorn backend.api:app --host 0.0.0.0 --port ${PORT:-8000}
+# Start the FastAPI server using gunicorn for production stability
+CMD gunicorn backend.api:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8000}
