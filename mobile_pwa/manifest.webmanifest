@@ -1,0 +1,9 @@
+{
+  "name": "Welding AI Mobile",
+  "short_name": "WeldAI",
+  "start_url": "/mobile",
+  "display": "standalone",
+  "background_color": "#091427",
+  "theme_color": "#0b1728",
+  "description": "Mobile-first welding defect inspection with explainability."
+}

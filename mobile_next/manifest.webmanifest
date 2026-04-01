@@ -1,0 +1,9 @@
+{
+  "name": "WeldVision Mobile X",
+  "short_name": "WeldVision",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#06101f",
+  "theme_color": "#06101f",
+  "description": "High-interaction welding inspection mobile app."
+}

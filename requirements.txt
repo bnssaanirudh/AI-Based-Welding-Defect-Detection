@@ -1,0 +1,15 @@
+streamlit
+torch
+torchvision
+opencv-python
+numpy
+segmentation-models-pytorch
+streamlit-authenticator
+pillow
+fastapi
+uvicorn
+python-multipart
+httpx
+passlib[bcrypt]
+python-jose[cryptography]
+python-dotenv

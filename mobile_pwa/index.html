@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Welding AI Mobile</title>
+  <meta name="theme-color" content="#0b1728" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="stylesheet" href="/mobile/assets/styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <section class="hero card">
+      <h1>Welding AI Mobile</h1>
+      <p>Installable mobile app with defect analytics and explainability.</p>
+    </section>
+
+    <section class="card paper-card">
+      <h2>Technical White Paper</h2>
+      <p>Deep dive into our Bayesian U-Net and XAI methodology.</p>
+      <a href="/v1/research/whitepaper" class="btn" download="WeldingAI_WhitePaper.docx" style="display: block; text-align: center; margin-top: 10px; background: #2dd4bf; color: #0b1728; text-decoration: none; font-weight: bold;">
+        Download White Paper (DOCX)
+      </a>
+    </section>
+
+    <section class="card controls">
+      <label for="backendUrl">Backend URL</label>
+      <input id="backendUrl" type="text" />
+
+      <label for="threshold">Threshold: <span id="thresholdValue">0.50</span></label>
+      <input id="threshold" type="range" min="0.1" max="0.9" step="0.05" value="0.5" />
+
+      <label class="toggle">
+        <input id="xaiToggle" type="checkbox" checked />
+        <span>Enable Explainability</span>
+      </label>
+    </section>
+
+    <section class="card actions">
+      <label class="btn">
+        Choose Photo
+        <input id="galleryInput" type="file" accept="image/*" hidden />
+      </label>
+      <label class="btn alt">
+        Use Camera
+        <input id="cameraInput" type="file" accept="image/*" capture="environment" hidden />
+      </label>
+      <button id="analyzeBtn" class="btn accent">Analyze</button>
+    </section>
+
+    <section id="statusCard" class="card status hidden"></section>
+
+    <section class="card">
+      <h2>Input</h2>
+      <img id="inputPreview" class="preview hidden" alt="Input preview" />
+    </section>
+
+    <section class="card">
+      <h2>Defect Overlay</h2>
+      <img id="overlayPreview" class="preview hidden" alt="Overlay preview" />
+    </section>
+
+    <section class="card">
+      <h2>Explainability Map</h2>
+      <img id="xaiPreview" class="preview hidden" alt="Explainability preview" />
+    </section>
+
+    <section class="card">
+      <h2>Summary</h2>
+      <div id="summary"></div>
+    </section>
+
+    <section class="card">
+      <h2>Per-Class Confidence</h2>
+      <div id="metrics"></div>
+    </section>
+  </main>
+
+  <script src="/mobile/assets/app.js"></script>
+</body>
+</html>
