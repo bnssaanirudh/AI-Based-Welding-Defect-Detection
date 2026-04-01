@@ -7,8 +7,12 @@ import {
     ArrowRight, 
     Zap,
     Loader2,
-    Activity
+    Activity,
+    Camera,
+    Play,
+    Pause
 } from 'lucide-react';
+import Webcam from 'react-webcam';
 import { API_BASE } from '../config';
 import classNames from 'classnames';
 import DashboardLayout from '../layouts/DashboardLayout';
@@ -23,8 +27,19 @@ export default function WeldingAnalysis() {
     const [activeTab, setActiveTab] = useState<'overlay' | 'heat' | 'fused'>('overlay');
     
     // Advice state
-    const [advice, setAdvice] = useState<string>("");
+    const [advice, setAdvice] = useState<{summary: string, actions: string[]} | null>(null);
     const [gettingAdvice, setGettingAdvice] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    // Live mode state
+    const [isLive, setIsLive] = useState(false);
+    const [isStreaming, setIsStreaming] = useState(false);
+    const webcamRef = useRef<Webcam>(null);
+    const streamIntervalRef = useRef<any>(null);
+
+    // Video file state
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [isVideo, setIsVideo] = useState(false);
 
     // Thermal state
     const [showThermal, setShowThermal] = useState(false);
@@ -36,19 +51,58 @@ export default function WeldingAnalysis() {
         if (selected) {
             setFile(selected);
             setPreview(URL.createObjectURL(selected));
+            setIsVideo(selected.type.startsWith('video/'));
             setResult(null);
-            setAdvice("");
+            setAdvice(null);
+            if (isStreaming) stopStreaming();
         }
     };
 
-    const runAnalysis = async () => {
-        if (!file || !token) return;
-        setAnalyzing(true);
-        setResult(null);
-        setAdvice("");
+    const stopStreaming = () => {
+        if (streamIntervalRef.current) {
+            clearInterval(streamIntervalRef.current);
+            streamIntervalRef.current = null;
+        }
+        setIsStreaming(false);
+    };
+
+    const startStreaming = () => {
+        setIsStreaming(true);
+        streamIntervalRef.current = setInterval(() => {
+            captureFrame();
+        }, 1500); // Analysis every 1.5s
+    };
+
+    const captureFrame = async () => {
+        let imageSrc: string | null = null;
+        
+        if (isLive && webcamRef.current) {
+            imageSrc = webcamRef.current.getScreenshot();
+        } else if (isVideo && videoRef.current) {
+            const canvas = document.createElement('canvas');
+            canvas.width = videoRef.current.videoWidth;
+            canvas.height = videoRef.current.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(videoRef.current, 0, 0);
+            imageSrc = canvas.toDataURL('image/jpeg');
+        }
+
+        if (imageSrc) {
+            const blob = await (await fetch(imageSrc)).blob();
+            const frameFile = new File([blob], "frame.jpg", { type: "image/jpeg" });
+            runAnalysis(frameFile);
+        }
+    };
+
+    const runAnalysis = async (overrideFile?: File) => {
+        const targetFile = overrideFile || file;
+        if (!targetFile || !token) return;
+        
+        if (!overrideFile) setAnalyzing(true);
+        setError(null);
 
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', targetFile);
 
         try {
             const res = await fetchWithAuth(`${API_BASE}/v1/analyze/image?threshold=0.4&explain=true`, {
@@ -63,8 +117,9 @@ export default function WeldingAnalysis() {
             fetchAdvice(data.summary);
         } catch (err) {
             console.error(err);
+            setError("Analysis failed. Backend might be offline.");
         } finally {
-            setAnalyzing(false);
+            if (!overrideFile) setAnalyzing(false);
         }
     };
 
@@ -83,7 +138,10 @@ export default function WeldingAnalysis() {
                 })
             });
             const data = await res.json();
-            setAdvice(data.advice || data.message || "No specific advice available.");
+            setAdvice({
+                summary: data.summary || "Actionable insights for the detected anomaly.",
+                actions: data.actions || []
+            });
         } catch (err) {
             console.error(err);
         } finally {
@@ -98,47 +156,102 @@ export default function WeldingAnalysis() {
                 {/* Control Panel */}
                 <div className="lg:col-span-4 space-y-6">
                     <div className="glass-card p-6 border-blue-500/20 bg-slate-900/40">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
-                                <Zap className="w-5 h-5 text-blue-400" />
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                                    <Zap className="w-5 h-5 text-blue-400" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-white tracking-tight">AI Pipeline</h3>
+                                    <p className="text-[10px] text-blue-500 font-black uppercase tracking-[0.2em] mt-0.5">Patent-Grade v4.0</p>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-white tracking-tight">AI Pipeline</h3>
-                                <p className="text-[10px] text-blue-500 font-black uppercase tracking-[0.2em] mt-0.5">Patent-Grade v4.0</p>
+                            <div className="flex bg-[#020617] p-1 rounded-lg border border-slate-800">
+                                <button 
+                                    onClick={() => { setIsLive(false); stopStreaming(); }}
+                                    className={classNames("p-2 rounded-md transition-all", !isLive ? "bg-slate-800 text-white" : "text-slate-500 hover:text-slate-300")}
+                                    title="Upload Mode"
+                                >
+                                    <Upload className="w-4 h-4" />
+                                </button>
+                                <button 
+                                    onClick={() => setIsLive(true)}
+                                    className={classNames("p-2 rounded-md transition-all", isLive ? "bg-blue-600 text-white" : "text-slate-500 hover:text-slate-300")}
+                                    title="Live Mode"
+                                >
+                                    <Camera className="w-4 h-4" />
+                                </button>
                             </div>
                         </div>
 
-                        <div 
-                            onClick={() => fileInputRef.current?.click()}
-                            className={`border-2 border-dashed rounded-2xl p-6 transition-all cursor-pointer text-center group bg-[#020617]
-                                ${file ? 'border-blue-500/40 bg-blue-500/5' : 'border-slate-800 hover:border-blue-500/30'}`}
-                        >
-                            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
-                            
-                            {preview ? (
-                                <div className="relative group">
-                                    <img 
-                                        src={preview} 
-                                        alt="Input" 
-                                        className={classNames(
-                                            "w-full h-44 object-cover rounded-xl shadow-2xl transition-all duration-500",
-                                            showThermal && "brightness-[1.2] contrast-[1.5] hue-rotate-[180deg] saturate-[2]"
+                        {!isLive ? (
+                            <div 
+                                onClick={() => fileInputRef.current?.click()}
+                                className={`border-2 border-dashed rounded-2xl p-6 transition-all cursor-pointer text-center group bg-[#020617]
+                                    ${file ? 'border-blue-500/40 bg-blue-500/5' : 'border-slate-800 hover:border-blue-500/30'}`}
+                            >
+                                <input 
+                                    type="file" 
+                                    ref={fileInputRef} 
+                                    onChange={handleFileChange} 
+                                    className="hidden" 
+                                    accept="image/*,video/*" 
+                                />
+                                
+                                {preview ? (
+                                    <div className="relative group">
+                                        {isVideo ? (
+                                            <video 
+                                                ref={videoRef}
+                                                src={preview} 
+                                                className="w-full h-44 object-cover rounded-xl shadow-2xl"
+                                                loop
+                                                muted
+                                            />
+                                        ) : (
+                                            <img 
+                                                src={preview} 
+                                                alt="Input" 
+                                                className={classNames(
+                                                    "w-full h-44 object-cover rounded-xl shadow-2xl transition-all duration-500",
+                                                    showThermal && "brightness-[1.2] contrast-[1.5] hue-rotate-[180deg] saturate-[2]"
+                                                )}
+                                            />
                                         )}
-                                    />
-                                    {showThermal && (
-                                        <div className="absolute inset-0 bg-orange-500/10 mix-blend-overlay rounded-xl pointer-events-none" />
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="py-6">
-                                    <div className="w-14 h-14 rounded-full bg-slate-800 mx-auto flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                        <Upload className="w-7 h-7 text-slate-500" />
+                                        {showThermal && !isVideo && (
+                                            <div className="absolute inset-0 bg-orange-500/10 mix-blend-overlay rounded-xl pointer-events-none" />
+                                        )}
                                     </div>
-                                    <p className="text-white font-bold text-sm mb-1 uppercase tracking-wider">Upload Specimen</p>
-                                    <p className="text-slate-500 text-[10px] font-bold">RESEARCH GRADE (RAW/JPG/PNG)</p>
+                                ) : (
+                                    <div className="py-6">
+                                        <div className="w-14 h-14 rounded-full bg-slate-800 mx-auto flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                            <Upload className="w-7 h-7 text-slate-500" />
+                                        </div>
+                                        <p className="text-white font-bold text-sm mb-1 uppercase tracking-wider">Upload Specimen</p>
+                                        <p className="text-slate-500 text-[10px] font-bold">RESEARCH GRADE (IMG/VID)</p>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="relative rounded-2xl overflow-hidden bg-black border-2 border-blue-500/30 h-44">
+                                <Webcam
+                                    audio={false}
+                                    ref={webcamRef}
+                                    screenshotFormat="image/jpeg"
+                                    className="w-full h-full object-cover"
+                                    videoConstraints={{ facingMode: "environment" }}
+                                />
+                                <div className="absolute top-2 right-2 px-2 py-1 bg-red-600 rounded text-[8px] font-black text-white animate-pulse uppercase tracking-widest">
+                                    LIVE FEED
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
+
+                        {error && (
+                            <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-[10px] font-bold text-center">
+                                {error}
+                            </div>
+                        )}
 
                         <div className="mt-4 flex gap-2">
                             <button 
@@ -156,11 +269,35 @@ export default function WeldingAnalysis() {
                         </div>
 
                         <button
-                            onClick={runAnalysis}
-                            disabled={!file || analyzing}
-                            className="w-full bg-blue-600 hover:bg-blue-500 text-white mt-6 py-4 rounded-xl font-black uppercase tracking-[0.15em] text-xs shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                            onClick={() => {
+                                if (isLive || isVideo) {
+                                    if (isStreaming) {
+                                        stopStreaming();
+                                        if (isVideo && videoRef.current) videoRef.current.pause();
+                                    } else {
+                                        startStreaming();
+                                        if (isVideo && videoRef.current) videoRef.current.play();
+                                    }
+                                } else {
+                                    runAnalysis();
+                                }
+                            }}
+                            disabled={(!file && !isLive) || analyzing}
+                            className={classNames(
+                                "w-full mt-6 py-4 rounded-xl font-black uppercase tracking-[0.15em] text-xs shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-50",
+                                isStreaming ? "bg-red-600 hover:bg-red-500 text-white shadow-xl shadow-red-600/20" : "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20"
+                            )}
                         >
-                            {analyzing ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Run Deep Analysis <ArrowRight className="w-4 h-4" /></>}
+                            {analyzing ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+                                isLive || isVideo ? (
+                                    <>
+                                        {isStreaming ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                                        {isStreaming ? "Stop Streaming" : "Start Live Analysis"}
+                                    </>
+                                ) : (
+                                    <>Run Deep Analysis <ArrowRight className="w-4 h-4" /></>
+                                )
+                            )}
                         </button>
                     </div>
 
@@ -237,61 +374,6 @@ export default function WeldingAnalysis() {
                         </div>
                     </div>
 
-                    {/* Patent-Grade Visualizers */}
-                    {result && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Digital Twin Synchronizer */}
-                            <div className="glass-card p-6 border-slate-800 bg-[#020617] h-64 flex flex-col">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Digital Twin (DTS)</h3>
-                                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
-                                </div>
-                                <div className="flex-1 flex items-center justify-center border-l border-b border-slate-800 relative overflow-hidden bg-slate-900/20 rounded-bl-xl">
-                                    <svg viewBox="0 0 200 100" className="w-full h-full p-4">
-                                        <path 
-                                            d="M 20 80 Q 50 10 100 80 T 180 80" 
-                                            fill="none" 
-                                            stroke="url(#grad)" 
-                                            strokeWidth="2" 
-                                            className="animate-[dash_3s_linear_infinite]"
-                                            strokeDasharray="5,5"
-                                        />
-                                        <defs>
-                                            <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                                                <stop offset="0%" stopColor="#2563eb" />
-                                                <stop offset="100%" stopColor="#60a5fa" />
-                                            </linearGradient>
-                                        </defs>
-                                        {result.patent_metadata.dts_coordinates.map((c: any, i: number) => (
-                                            <circle key={i} cx={40 + i*12} cy={50 + c.y} r={1.5 + c.tension} fill={c.tension > 0.8 ? '#ef4444' : '#3b82f6'} opacity={0.8} />
-                                        ))}
-                                    </svg>
-                                    <div className="absolute top-2 left-2 text-[8px] font-mono text-slate-500">X-Y-Z CLOUD MAPPING</div>
-                                </div>
-                            </div>
-
-                            {/* Acoustic Signature Analysis */}
-                            <div className="glass-card p-6 border-slate-800 bg-[#020617] h-64 flex flex-col">
-                                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Acoustic Signature</h3>
-                                <div className="flex-1 flex items-end gap-1.5 pb-2">
-                                    {result.patent_metadata.acoustic_signature.map((val: number, i: number) => (
-                                        <div 
-                                            key={i} 
-                                            className="bg-blue-600/60 flex-1 rounded-t-sm hover:bg-blue-400 transition-all cursor-crosshair min-h-[4px]"
-                                            style={{ height: `${val * 4}%` }}
-                                            title={`Freq ${i*100}Hz: ${val}dB`}
-                                        />
-                                    ))}
-                                </div>
-                                <div className="flex justify-between text-[8px] font-black text-slate-600 tracking-tighter uppercase mt-2">
-                                    <span>20Hz</span>
-                                    <span>Frequency Distribution</span>
-                                    <span>22kHz</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
                     {/* AI Repair Protocol */}
                     <div className="glass-card p-8 border-l-4 border-l-blue-600 bg-slate-900/40">
                         <div className="flex items-center justify-between mb-8">
@@ -310,7 +392,17 @@ export default function WeldingAnalysis() {
                         {advice && (
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
                                 <div className="p-6 bg-[#020617] rounded-2xl border border-slate-800 text-slate-300 text-sm font-medium leading-relaxed border-l-2 border-l-blue-400">
-                                    {advice}
+                                    <p className="mb-4 text-white font-bold tracking-tight italic">"{advice.summary}"</p>
+                                    <ul className="space-y-3">
+                                        {advice.actions.map((act, idx) => (
+                                            <li key={idx} className="flex gap-3">
+                                                <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-[10px] font-black shrink-0">
+                                                    {idx + 1}
+                                                </div>
+                                                <span className="text-[11px] font-medium leading-normal">{act}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
                                 </div>
                                 <div className="flex flex-wrap gap-4">
                                     <button className="px-5 py-2.5 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:scale-105 transition-all">
