@@ -1,0 +1,16 @@
+# Render deployment config
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: welding-ai-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: GROQ_API_KEY
+        sync: false   # Set this manually in the Render dashboard
+      - key: SECRET_KEY
+        generateValue: true
+    healthCheckPath: /health
+    autoDeploy: true

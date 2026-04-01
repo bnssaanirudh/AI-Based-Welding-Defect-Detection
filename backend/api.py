@@ -43,15 +43,20 @@ app = FastAPI(title="Welding AI API", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        # Local development
         "http://localhost:5173",
         "http://localhost:5174",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
         "http://localhost:3000",
+        # Mobile
         "capacitor://localhost",
         "http://localhost",
+        # Vercel deployments (production + previews)
+        "https://ai-based-welding-defect-detection.vercel.app",
+        "https://welding-ai.vercel.app",
     ],
-    allow_origin_regex=r"http://(192\.168|172\.\d+)\.\d+\.\d+:\d+",
+    allow_origin_regex=r"(https://.*\.vercel\.app|http://(192\.168|172\.\d+)\.\d+\.\d+:\d+)",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
